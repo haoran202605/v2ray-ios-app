@@ -68,7 +68,7 @@ struct ServerRow: View {
                     Text(server.name)
                         .font(.subheadline.weight(.medium))
                         .lineLimit(1)
-                    Text(server.protocol.displayName)
+                    Text(server.proto.displayName)
                         .font(.caption2)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
