@@ -1,15 +1,11 @@
 import Foundation
 import Combine
-import Darwin
 
 /// Manages the embedded sing-box binary **inside the main app process**.
 ///
-/// Requirements for the real runtime:
-/// - A `sing-box` binary (iOS/arm64) added to the main app target's
-///   "Copy Bundle Resources".
-/// - The binary MUST be signed as part of the app bundle; unsigned
-///   executables cannot run inside an iOS app's sandbox.
-/// - App Group container for the config file.
+/// Note: `posix_spawn` is only available on macOS. This service compiles
+/// and runs on iOS with a graceful "binary not embedded" path. The
+/// process-launching code is guarded so the app always builds.
 final class SingBoxService: ObservableObject {
 
     // MARK: - Published state
@@ -120,9 +116,22 @@ final class SingBoxService: ObservableObject {
         return cfgURL
     }
 
-    // MARK: - posix_spawn
+    // MARK: - Process spawn
 
     private func spawn(binary: URL, arguments: [String]) throws {
+        #if os(macOS)
+        try spawnViaPosixSpawn(binary: binary, arguments: arguments)
+        #else
+        // On iOS we cannot spawn an unsigned auxiliary binary; throw a clear
+        // error so the UI can surface it.
+        throw StartError.binaryNotSupported
+        #endif
+    }
+
+    #if os(macOS)
+    private func spawnViaPosixSpawn(binary: URL, arguments: [String]) throws {
+        import Darwin
+
         let execPath = binary.path
         var argv: [UnsafeMutablePointer<CChar>?] = []
         for a in [execPath] + arguments {
@@ -131,27 +140,21 @@ final class SingBoxService: ObservableObject {
         argv.append(nil)
 
         var pid: pid_t = 0
+        var attr = posix_spawnattr_t()
+        posix_spawnattr_init(&attr)
+        defer { posix_spawnattr_destroy(&attr) }
 
-        let spawnAttr = UnsafeMutablePointer<posix_spawnattr_t>.allocate(capacity: 1)!
-        spawnAttr.pointee = posix_spawnattr_t()
-        posix_spawnattr_init(spawnAttr)
-
-        let ret = posix_spawn(&pid,
-                              strdup(execPath),
-                              nil,
-                              spawnAttr,
-                              argv,
-                              environ)
-
+        let ret = posix_spawn(&pid, strdup(execPath), nil, &attr,
+                              argv, __environ)
         for p in argv where p != nil { free(p) }
         if let execC = strdup(execPath) { free(execC) }
-        spawnAttr.deallocate()
 
         if ret != 0 {
             throw StartError.spawnFailed(errno: ret)
         }
         childPid = pid
     }
+    #endif
 
     // MARK: - Stats polling
 
@@ -175,13 +178,18 @@ final class SingBoxService: ObservableObject {
 
     private func isProcessAlive() -> Bool {
         guard childPid > 0 else { return false }
+        #if os(macOS)
         return kill(childPid, 0) == 0
+        #else
+        return false
+        #endif
     }
 
     // MARK: - Errors
 
     enum StartError: LocalizedError {
         case binaryNotFound
+        case binaryNotSupported
         case noAppGroup
         case noConfig
         case spawnFailed(errno: Int32)
@@ -190,6 +198,8 @@ final class SingBoxService: ObservableObject {
             switch self {
             case .binaryNotFound:
                 return "App Bundle 里找不到 sing-box 二进制，请先把它加进 target 的 Copy Bundle Resources"
+            case .binaryNotSupported:
+                return "iOS 上暂不支持内嵌 sing-box 子进程，请在 macOS 开发机测试"
             case .noAppGroup:
                 return "App Group 容器不可用，请检查 entitlements 里的 group 是否配好"
             case .noConfig:

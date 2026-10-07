@@ -5,43 +5,47 @@ enum LinkParser {
 
     static func parse(_ raw: String) -> ServerConfig? {
         let link = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let scheme = link.components(separatedBy: "://").first,
-              let url = URL(string: link) else { return nil }
+        let parts = link.components(separatedBy: "://")
+        guard parts.count >= 2, let scheme = parts.first else { return nil }
+        guard let url = URL(string: link) else { return nil }
 
         switch scheme {
-        case "vless":  return parseVLESS(link, url)
-        case "vmess":  return parseVMess(link, url)
-        case "trojan": return parseTrojan(link, url)
-        case "ss":     return parseSS(link, url)
+        case "vless":  return parseVLESS(link: link, url: url)
+        case "vmess":  return parseVMess(link: link, url: url)
+        case "trojan": return parseTrojan(link: link, url: url)
+        case "ss":     return parseSS(link: link, url: url)
+        case "ss-base64":
+            // some clients use data-based ss links; fall through to generic base64
+            return parseBase64JSON(link: link)
         default:
-            if let data = Data(base64Encoded: link) {
-                let obj = try? JSONSerialization.jsonObject(with: data)
-                return parseVMessJSON(obj)
-            }
+            return parseBase64JSON(link: link)
+        }
+    }
+
+    // MARK: - base64-JSON (vmess:// and legacy)
+
+    private static func parseBase64JSON(link: String) -> ServerConfig? {
+        let base = link.components(separatedBy: "://").last ?? ""
+        guard let data = Data(base64Encoded: base),
+              let obj = try? JSONSerialization.jsonObject(with: data) else {
             return nil
         }
+        return parseVMessJSON(obj)
     }
 
     // MARK: - vless://
 
-    private static func parseVLESS(_ link: String, _ url: URL) -> ServerConfig? {
-        guard let components = URLComponents(string: link) else { return nil }
+    private static func parseVLESS(link: String, url: URL) -> ServerConfig? {
+        guard let host = url.host else { return nil }
         var cfg = ServerConfig(
             name: "",
             proto: .vless,
-            address: url.host ?? "",
+            address: host,
             port: url.port ?? 443,
             uuid: url.user ?? ""
         )
-        cfg.sni = url.host ?? ""
-        var query = [String: String]()
-        if let q = components.queryItems {
-            for item in q {
-                if let key = item.name, let value = item.value {
-                    query[key] = value
-                }
-            }
-        }
+        cfg.sni = host
+        let query = parseQuery(link: link)
         if let sec = query["security"], let mode = SecurityMode(rawValue: sec) {
             cfg.security = mode
         }
@@ -52,22 +56,19 @@ enum LinkParser {
         if let pk = query["pbk"] { cfg.publicKey = pk }
         if let sid = query["sid"] { cfg.shortId = sid }
         if let fp = query["fp"] { cfg.fingerprint = fp }
-        if let remarks = query["remarks"] {
-            let decoded = (remarks as NSString).removingPercentEncoding ?? remarks
-            cfg.name = decoded
+        if let remarks = decodePct(query["remarks"]) {
+            cfg.name = remarks
         } else {
-            cfg.name = "VLESS-\(url.host ?? "?")"
+            cfg.name = "VLESS-\(host)"
         }
         return cfg
     }
 
     // MARK: - vmess://
 
-    private static func parseVMess(_ link: String, _ url: URL) -> ServerConfig? {
-        let base = link.components(separatedBy: "://").last ?? ""
-        guard let data = Data(base64Encoded: base) else { return nil }
-        guard let obj = try? JSONSerialization.jsonObject(with: data) else { return nil }
-        return parseVMessJSON(obj)
+    private static func parseVMess(link: String, url: URL) -> ServerConfig? {
+        _ = url
+        return parseBase64JSON(link: link)
     }
 
     private static func parseVMessJSON(_ obj: Any?) -> ServerConfig? {
@@ -97,62 +98,61 @@ enum LinkParser {
 
     // MARK: - trojan://
 
-    private static func parseTrojan(_ link: String, _ url: URL) -> ServerConfig? {
-        guard let components = URLComponents(string: link) else { return nil }
+    private static func parseTrojan(link: String, url: URL) -> ServerConfig? {
+        guard let host = url.host else { return nil }
         var cfg = ServerConfig(
-            name: "Trojan-\(url.host ?? "?")",
+            name: "Trojan-\(host)",
             proto: .trojan,
-            address: url.host ?? "",
+            address: host,
             port: url.port ?? 443,
             uuid: url.user ?? "",
             security: .tls
         )
-        cfg.sni = url.host ?? ""
-        var query = [String: String]()
-        if let q = components.queryItems {
-            for item in q {
-                if let key = item.name, let value = item.value {
-                    query[key] = value
-                }
-            }
-        }
+        cfg.sni = host
+        let query = parseQuery(link: link)
         if let sni = query["sni"] { cfg.sni = sni }
-        if let remarks = query["remarks"] {
-            let decoded = (remarks as NSString).removingPercentEncoding ?? remarks
-            cfg.name = decoded
+        if let remarks = decodePct(query["remarks"]) {
+            cfg.name = remarks
         }
         return cfg
     }
 
     // MARK: - ss://
 
-    private static func parseSS(_ link: String, _ url: URL) -> ServerConfig? {
-        let base = link.components(separatedBy: "://").last ?? ""
-        let decoded = (base as NSString).removingPercentEncoding ?? base
-        guard let token = String(data: decoded.data(using: .utf8) ?? Data(), encoding: .utf8) else {
-            return nil
-        }
-        let parts = token.components(separatedBy: "@")
-        guard let right = parts.last, right.contains(":") else { return nil }
-        let userParts = right.components(separatedBy: ":")
-        guard userParts.count >= 3 else { return nil }
-        var cfg = ServerConfig(
-            name: "SS-\(url.host ?? "?")",
+    private static func parseSS(link: String, url: URL) -> ServerConfig? {
+        let host = url.host ?? ""
+        let port = url.port ?? 8388
+        let query = parseQuery(link: link)
+        let cfg = ServerConfig(
+            name: "SS-\(host)",
             proto: .shadowsocks,
-            address: url.host ?? "",
-            port: url.port ?? 8388,
-            uuid: userParts[2],
+            address: host,
+            port: port,
+            uuid: decodePct(query["password"]) ?? "",
             security: .none
         )
-        if let q = URLComponents(string: link)?.query {
-            let items = q.components(separatedBy: "&")
-            if let remark = items.first(where: { $0.hasPrefix("remarks=") }) {
-                let key = remark.components(separatedBy: "=").first ?? "remarks"
-                let value = remark.components(separatedBy: "=").dropFirst().joined(separator: "=")
-                let decoded = (value as NSString).removingPercentEncoding ?? value
-                cfg.name = decoded
-            }
+        if let remarks = decodePct(query["remarks"]) {
+            cfg.name = remarks
         }
         return cfg
+    }
+
+    // MARK: - helpers
+
+    private static func parseQuery(link: String) -> [String: String] {
+        guard let components = URLComponents(string: link),
+              let q = components.queryItems else { return [:] }
+        var result = [String: String]()
+        for item in q {
+            if let key = item.name, let value = item.value {
+                result[key] = value
+            }
+        }
+        return result
+    }
+
+    private static func decodePct(_ value: String?) -> String? {
+        guard let value else { return nil }
+        return (value as NSString).removingPercentEncoding ?? value
     }
 }

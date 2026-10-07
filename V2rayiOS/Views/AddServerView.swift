@@ -46,10 +46,10 @@ struct AddServerView: View {
                 } else {
                     Section("基本信息") {
                         TextField("名称", text: $name)
-                        HStack {
-                            TextField("地址", text: $address)
-                            TextField("端口", text: portText, onCommit: { _ = portText = port }).multilineTextAlignment(.trailing)
-                        }
+                        TextField("地址", text: $address)
+                        TextField("端口", value: $port, format: .number)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
                     }
 
                     Section("协议") {
@@ -108,7 +108,7 @@ struct AddServerView: View {
         }
     }
 
-    private var portText: Binding<String> {
+    private func portText() -> Binding<String> {
         Binding(get: { String(port) }, set: { port = Int($0) ?? 0 })
     }
 
