@@ -37,7 +37,7 @@ enum TransportType: String, Codable {
 struct ServerConfig: Codable, Identifiable, Hashable {
     var id: UUID = UUID()
     var name: String
-    var protocol: ProxyProtocol
+    var proto: ProxyProtocol
     var address: String
     var port: Int
     var uuid: String
@@ -51,6 +51,6 @@ struct ServerConfig: Codable, Identifiable, Hashable {
     var fingerprint: String = "chrome"
 
     func summary() -> String {
-        "\(protocol.rawValue.uppercased()) · \(name) · \(address):\(port)"
+        "\(proto.rawValue.uppercased()) · \(name) · \(address):\(port)"
     }
 }
