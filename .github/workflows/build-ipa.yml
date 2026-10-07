@@ -54,7 +54,7 @@ jobs:
         run: |
           APP=$(find "$PWD/DerivedData/Build/Products/Release-iphoneos" -maxdepth 1 -name "V2rayiOS.app" -print -quit)
           echo "Found: $APP"
-          mkdir -dist
+          mkdir -p dist
           cp -R "$APP" dist/
           cd dist
           zip -qr V2rayiOS-unsigned.app.zip V2rayiOS.app

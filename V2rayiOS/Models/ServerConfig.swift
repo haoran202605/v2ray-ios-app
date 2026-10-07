@@ -20,13 +20,13 @@ enum ProxyProtocol: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-enum SecurityMode: String, Codable {
+enum SecurityMode: String, Codable, CaseIterable {
     case tls
     case reality
     case none
 }
 
-enum TransportType: String, Codable {
+enum TransportType: String, Codable, CaseIterable {
     case tcp
     case kcp
     case websocket

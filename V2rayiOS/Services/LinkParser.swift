@@ -11,26 +11,44 @@ enum LinkParser {
 
         switch scheme {
         case "vless":  return parseVLESS(link: link, url: url)
-        case "vmess":  return parseVMess(link: link, url: url)
+        case "vmess":  return parseVMessJSON(link: link)
         case "trojan": return parseTrojan(link: link, url: url)
         case "ss":     return parseSS(link: link, url: url)
-        case "ss-base64":
-            // some clients use data-based ss links; fall through to generic base64
-            return parseBase64JSON(link: link)
         default:
-            return parseBase64JSON(link: link)
+            return parseVMessJSON(link: link)
         }
     }
 
     // MARK: - base64-JSON (vmess:// and legacy)
 
-    private static func parseBase64JSON(link: String) -> ServerConfig? {
+    private static func parseVMessJSON(link: String) -> ServerConfig? {
         let base = link.components(separatedBy: "://").last ?? ""
-        guard let data = Data(base64Encoded: base),
-              let obj = try? JSONSerialization.jsonObject(with: data) else {
-            return nil
+        guard let data = Data(base64Encoded: base) else { return nil }
+        guard let obj = try? JSONSerialization.jsonObject(with: data) else { return nil }
+        guard let dict = obj as? [String: Any] else { return nil }
+
+        let address = (dict["add"] as? String) ?? ""
+        let portStr = (dict["port"] as? String) ?? ""
+        let port = Int(portStr) ?? 443
+        let id = (dict["id"] as? String) ?? ""
+        let net = (dict["net"] as? String).flatMap { TransportType(rawValue: $0) } ?? .tcp
+        let security = (dict["security"] as? String) ?? "none"
+
+        var cfg = ServerConfig(
+            name: "VMESS-\(address)",
+            proto: .vmess,
+            address: address,
+            port: port,
+            uuid: id,
+            security: SecurityMode(rawValue: security) ?? .none
+        )
+        cfg.network = net
+        if let p = dict["path"] as? String { cfg.path = p }
+        if let h = dict["host"] as? String { cfg.sni = h }
+        if let ps = dict["ps"] as? String, !ps.isEmpty {
+            cfg.name = ps
         }
-        return parseVMessJSON(obj)
+        return cfg
     }
 
     // MARK: - vless://
@@ -46,52 +64,9 @@ enum LinkParser {
         )
         cfg.sni = host
         let query = parseQuery(link: link)
-        if let sec = query["security"], let mode = SecurityMode(rawValue: sec) {
-            cfg.security = mode
-        }
-        if let sni = query["sni"] { cfg.sni = sni }
-        if let net = query["type"], let tt = TransportType(rawValue: net) { cfg.network = tt }
-        if let path = query["path"] { cfg.path = path }
-        if let flow = query["flow"] { cfg.flow = flow }
-        if let pk = query["pbk"] { cfg.publicKey = pk }
-        if let sid = query["sid"] { cfg.shortId = sid }
-        if let fp = query["fp"] { cfg.fingerprint = fp }
-        if let remarks = decodePct(query["remarks"]) {
-            cfg.name = remarks
-        } else {
+        applyQuery(query, to: &cfg)
+        if cfg.name.isEmpty {
             cfg.name = "VLESS-\(host)"
-        }
-        return cfg
-    }
-
-    // MARK: - vmess://
-
-    private static func parseVMess(link: String, url: URL) -> ServerConfig? {
-        _ = url
-        return parseBase64JSON(link: link)
-    }
-
-    private static func parseVMessJSON(_ obj: Any?) -> ServerConfig? {
-        guard let dict = obj as? [String: Any] else { return nil }
-        let address = (dict["add"] as? String) ?? ""
-        let portStr = (dict["port"] as? String) ?? ""
-        let port = Int(portStr) ?? 443
-        let id = (dict["id"] as? String) ?? ""
-        let net = (dict["net"] as? String).flatMap(TransportType.init(rawValue:)) ?? .tcp
-        let security = (dict["security"] as? String) ?? "none"
-        var cfg = ServerConfig(
-            name: "VMESS-\(address)",
-            proto: .vmess,
-            address: address,
-            port: port,
-            uuid: id,
-            security: SecurityMode(rawValue: security) ?? .none
-        )
-        cfg.network = net
-        if let path = dict["path"] as? String { cfg.path = path }
-        if let host = dict["host"] as? String { cfg.sni = host }
-        if let remarks = dict["ps"] as? String, !remarks.isEmpty {
-            cfg.name = remarks
         }
         return cfg
     }
@@ -139,14 +114,34 @@ enum LinkParser {
 
     // MARK: - helpers
 
+    /// Applies shared query params to a config.
+    private static func applyQuery(_ query: [String: String], to cfg: inout ServerConfig) {
+        if let sec = query["security"], let mode = SecurityMode(rawValue: sec) {
+            cfg.security = mode
+        }
+        if let sni = query["sni"] { cfg.sni = sni }
+        if let net = query["type"], let tt = TransportType(rawValue: net) { cfg.network = tt }
+        if let path = query["path"] { cfg.path = path }
+        if let flow = query["flow"] { cfg.flow = flow }
+        if let pk = query["pbk"] { cfg.publicKey = pk }
+        if let sid = query["sid"] { cfg.shortId = sid }
+        if let fp = query["fp"] { cfg.fingerprint = fp }
+        if let remarks = decodePct(query["remarks"]) {
+            cfg.name = remarks
+        }
+    }
+
     private static func parseQuery(link: String) -> [String: String] {
-        guard let components = URLComponents(string: link),
-              let q = components.queryItems else { return [:] }
+        guard let components = URLComponents(string: link) else {
+            return [:]
+        }
+        let items = components.queryItems
+        guard items != nil else {
+            return [:]
+        }
         var result = [String: String]()
-        for item in q {
-            if let key = item.name, let value = item.value {
-                result[key] = value
-            }
+        for item in items! {
+            result[item.name] = item.value
         }
         return result
     }
