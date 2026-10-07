@@ -152,6 +152,7 @@ enum LinkParser {
     }
 
     private static func decodePct(_ value: String?) -> String? {
-        return (value as NSString).removingPercentEncoding ?? value
+        guard let value else { return nil }
+        return value.removingPercentEncoding ?? value
     }
 }

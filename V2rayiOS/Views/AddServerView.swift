@@ -46,11 +46,11 @@ struct AddServerView: View {
                 } else {
                     Section("基本信息") {
                         TextField("名称", text: $name)
-                        TextField("地址", text: $address)
-                        TextField("端口", value: $port, format: .number)
-                            .keyboardType(.numberPad)
-                            .multilineTextAlignment(.trailing)
-                    }
+                        HStack {
+                            TextField("地址", text: $address)
+                            Spacer()
+                            TextField("端口", text: 
+            }
 
                     Section("协议") {
                         Picker("协议", selection: $protocolType) {
