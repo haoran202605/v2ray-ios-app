@@ -116,7 +116,7 @@ struct AddServerView: View {
         guard !uuid.isEmpty, !address.isEmpty else { return }
         let config = ServerConfig(
             name: name.isEmpty ? "VLESS-\(address)" : name,
-            protocol: protocolType,
+            proto: protocolType,
             address: address,
             port: port == 0 ? 443 : port,
             uuid: uuid,
