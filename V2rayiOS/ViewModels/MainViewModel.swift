@@ -78,9 +78,9 @@ class MainViewModel: ObservableObject {
 
     func removeServer(_ s: ServerConfig) {
         if selectedServer?.id == s.id {
-            selectedServer = servers.first(where: { $0.id != s.id })
+            selectedServer = servers.first(where: { s2 in s2.id != s.id })
         }
-        servers.removeAll { $0.id == s.id }
+        servers.removeAll { s2 in s2.id == s.id }
         store.saveServers(servers)
     }
 
