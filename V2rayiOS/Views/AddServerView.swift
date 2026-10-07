@@ -48,10 +48,13 @@ struct AddServerView: View {
                         TextField("名称", text: $name)
                         HStack {
                             TextField("地址", text: $address)
-                            Spacer()
-                            TextField("端口", text: 
-            }
-
+                                .keyboardType(.asciiCapable)
+                            TextField("端口", text: portBinding())
+                                .keyboardType(.numberPad)
+                                .multilineTextAlignment(.trailing)
+                                .frame(width: 80)
+                        }
+                    }
                     Section("协议") {
                         Picker("协议", selection: $protocolType) {
                             ForEach(ProxyProtocol.allCases) { p in
