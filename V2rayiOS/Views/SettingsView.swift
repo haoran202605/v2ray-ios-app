@@ -13,7 +13,7 @@ struct SettingsView: View {
                 Section {
                     Toggle("系统代理", isOn: .constant(false))
                         .disabled(true)
-                    Text("本应用使用系统级 VPN 模式，无需系统代理")
+                    Text("本应用使用本地代理模式，在设置中手动配置 HTTP/SOCKS 代理")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
