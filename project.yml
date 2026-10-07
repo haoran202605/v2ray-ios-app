@@ -1,0 +1,31 @@
+name: V2rayiOS
+options:
+  createIntermediateGroups: true
+  bundleIdPrefix: com.yourname
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+targets:
+  V2rayiOS:
+    type: application
+    platform: iOS
+    sources:
+      - V2rayiOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yourname.v2rayios
+        INFOPLIST_FILE: V2rayiOS/Info.plist
+        CODE_SIGN_ENTITLEMENTS: V2rayiOS/V2rayiOS.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_PREVIEWS: YES
+        GENERATE_INFOPLIST_FILE: NO
+
+schemes:
+  V2rayiOS:
+    build:
+      targets:
+        V2rayiOS: all
+    run:
+      config: Debug
