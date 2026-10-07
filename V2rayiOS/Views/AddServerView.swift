@@ -108,7 +108,7 @@ struct AddServerView: View {
         }
     }
 
-    private func portText() -> Binding<String> {
+    private func portBinding() -> Binding<String> {
         Binding(get: { String(port) }, set: { port = Int($0) ?? 0 })
     }
 

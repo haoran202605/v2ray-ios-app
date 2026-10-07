@@ -123,7 +123,7 @@ enum LinkParser {
         let host = url.host ?? ""
         let port = url.port ?? 8388
         let query = parseQuery(link: link)
-        let cfg = ServerConfig(
+        var cfg = ServerConfig(
             name: "SS-\(host)",
             proto: .shadowsocks,
             address: host,
@@ -152,7 +152,6 @@ enum LinkParser {
     }
 
     private static func decodePct(_ value: String?) -> String? {
-        guard let value else { return nil }
         return (value as NSString).removingPercentEncoding ?? value
     }
 }

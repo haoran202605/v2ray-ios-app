@@ -121,17 +121,17 @@ final class SingBoxService: ObservableObject {
     private func spawn(binary: URL, arguments: [String]) throws {
         #if os(macOS)
         try spawnViaPosixSpawn(binary: binary, arguments: arguments)
-        #else
-        // On iOS we cannot spawn an unsigned auxiliary binary; throw a clear
-        // error so the UI can surface it.
-        throw StartError.binaryNotSupported
-        #endif
+            #else
+            _ = binary
+            _ = arguments
+            // On iOS we cannot spawn an unsigned auxiliary binary; throw a clear
+            // error so the UI can surface it.
+            throw StartError.binaryNotSupported
+            #endif
     }
 
     #if os(macOS)
     private func spawnViaPosixSpawn(binary: URL, arguments: [String]) throws {
-        import Darwin
-
         let execPath = binary.path
         var argv: [UnsafeMutablePointer<CChar>?] = []
         for a in [execPath] + arguments {
