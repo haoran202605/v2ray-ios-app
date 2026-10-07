@@ -1,0 +1,82 @@
+name: Build V2Ray iOS App
+
+on:
+  workflow_dispatch:
+    inputs:
+      team_id:
+        description: "Apple Developer Team ID (10 chars)"
+        required: false
+        default: ""
+      bundle_id:
+        description: "Override bundle id"
+        required: false
+        default: "com.yourname.v2rayios"
+
+jobs:
+  build-universal:
+    # Free for public repos. For private repos this is paid (~$5.54/GB-min).
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install xcodegen
+        run: brew install xcodegen || brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Resolve build settings
+        run: |
+          set -x
+          BUNDLE_ID="${{ inputs.bundle_id }}"
+          TEAM_ID="${{ inputs.team_id }}"
+          echo "BUNDLE_ID=$BUNDLE_ID" >> $GITHUB_ENV
+          echo "TEAM_ID=$TEAM_ID" >> $GITHUB_ENV
+
+      - name: Build (unsigned .app, no signing)
+        # If TEAM_ID + a mobileprovision are provided, switch to
+        # `-allowProvisioningUpdates` + `CODE_SIGN_IDENTITY` + a P12 secret.
+        # For now we build an unsigned .app so the pipeline proves
+        # xcodegen + xcodebuild + Swift sources are all sound.
+        run: |
+          xcodebuild -project V2rayiOS.xcodeproj \
+            -scheme V2rayiOS \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$PWD/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package .app
+        run: |
+          APP=$(find "$PWD/DerivedData/Build/Products/Release-iphoneos" -maxdepth 1 -name "V2rayiOS.app" -print -quit)
+          echo "Found: $APP"
+          mkdir -dist
+          cp -R "$APP" dist/
+          cd dist
+          zip -qr V2rayiOS-unsigned.app.zip V2rayiOS.app
+          cd ..
+
+      - name: Upload unsigned .app (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: V2rayiOS-unsigned
+          path: dist/V2rayiOS-unsigned.app.zip
+          retention-days: 14
+
+      - name: Package IPA (unsigned, for reference only)
+        run: |
+          cd dist
+          mkdir Payload
+          cp -R V2rayiOS.app Payload/
+          zip -qr V2rayiOS-unsigned.ipa Payload
+          ls -lh V2rayiOS-unsigned.ipa
+
+      - name: Upload unsigned .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: V2rayiOS-unsigned.ipa
+          path: dist/V2rayiOS-unsigned.ipa
+          retention-days: 14
