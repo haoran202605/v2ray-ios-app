@@ -48,7 +48,7 @@ final class SingBoxService: ObservableObject {
             guard let cfgJSON = store.readActiveConfig() else { throw StartError.noConfig }
             let cfgURL = try writeActiveConfigFile(json: cfgJSON)
             let args: [String] = ["run", "-c", cfgURL.path]
-            spawn(binary: binURL, arguments: args)
+            try spawn(binary: binURL, arguments: args)
             isRunning = true
             status = "proxy running on 127.0.0.1:\(Self.httpPort) / \(Self.socksPort)"
             startStatsPolling()
@@ -132,8 +132,8 @@ final class SingBoxService: ObservableObject {
 
         var pid: pid_t = 0
 
-        let spawnAttr: UnsafeMutablePointer<posix_spawnattr_t>? = UnsafeMutablePointer<posix_spawnattr_t>.allocate(capacity: 1)
-        spawnAttr?.pointee = posix_spawnattr_t()
+        let spawnAttr = UnsafeMutablePointer<posix_spawnattr_t>.allocate(capacity: 1)!
+        spawnAttr.pointee = posix_spawnattr_t()
         posix_spawnattr_init(spawnAttr)
 
         let ret = posix_spawn(&pid,
@@ -145,7 +145,7 @@ final class SingBoxService: ObservableObject {
 
         for p in argv where p != nil { free(p) }
         if let execC = strdup(execPath) { free(execC) }
-        spawnAttr?.deallocate()
+        spawnAttr.deallocate()
 
         if ret != 0 {
             throw StartError.spawnFailed(errno: ret)

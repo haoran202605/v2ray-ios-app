@@ -129,8 +129,7 @@ enum LinkParser {
     private static func parseSS(_ link: String, _ url: URL) -> ServerConfig? {
         let base = link.components(separatedBy: "://").last ?? ""
         let decoded = (base as NSString).removingPercentEncoding ?? base
-        let data = base.hasPrefix("AAAA") ? Data(base.dropFirst(4), using: .utf8) : base.data(using: .utf8)
-        guard let token = data != nil ? String(data: data!, encoding: .utf8) : nil else {
+        guard let token = String(data: decoded.data(using: .utf8) ?? Data(), encoding: .utf8) else {
             return nil
         }
         let parts = token.components(separatedBy: "@")
@@ -145,13 +144,14 @@ enum LinkParser {
             uuid: userParts[2],
             security: .none
         )
-        if let q = URLComponents(string: link)?.query,
-           let items = q.components(separatedBy: "&"),
-           let remark = items.first(where: { $0.hasPrefix("remarks=") }) {
-            let key = remark.components(separatedBy: "=").first ?? "remarks"
-            let value = remark.components(separatedBy: "=").dropFirst().joined(separator: "=")
-            let decoded = (value as NSString).removingPercentEncoding ?? value
-            cfg.name = decoded
+        if let q = URLComponents(string: link)?.query {
+            let items = q.components(separatedBy: "&")
+            if let remark = items.first(where: { $0.hasPrefix("remarks=") }) {
+                let key = remark.components(separatedBy: "=").first ?? "remarks"
+                let value = remark.components(separatedBy: "=").dropFirst().joined(separator: "=")
+                let decoded = (value as NSString).removingPercentEncoding ?? value
+                cfg.name = decoded
+            }
         }
         return cfg
     }

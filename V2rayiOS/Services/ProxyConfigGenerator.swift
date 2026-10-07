@@ -46,7 +46,7 @@ enum ProxyConfigGenerator {
     }
 
     private static func buildOutbound(for s: ServerConfig) -> [String: Any] {
-        switch s.protocol {
+        switch s.proto {
         case .vless:   return vlessOutbound(s)
         case .vmess:   return vmessOutbound(s)
         case .trojan:  return trojanOutbound(s)
