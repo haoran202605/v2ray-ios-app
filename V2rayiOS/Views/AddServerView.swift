@@ -49,7 +49,11 @@ struct AddServerView: View {
                         HStack {
                             TextField("地址", text: $address)
                                 .keyboardType(.asciiCapable)
-                            TextField("端口", text: portBinding())
+                        }
+                        HStack {
+                            Text("端口")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            TextField("", text: portBinding())
                                 .keyboardType(.numberPad)
                                 .multilineTextAlignment(.trailing)
                                 .frame(width: 80)
