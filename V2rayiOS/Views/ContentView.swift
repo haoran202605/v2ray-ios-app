@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var vm: MainViewModel
+    @State private var showBrowser = false
 
     var body: some View {
         NavigationStack {
@@ -13,10 +14,23 @@ struct ContentView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        showBrowser = true
+                    } label: {
+                        Image(systemName: "safari")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         vm.showSettings = true
                     } label: {
                         Image(systemName: "gearshape")
                     }
+                }
+            }
+            .fullScreenCover(isPresented: $showBrowser) {
+                NavigationStack {
+                    BrowserView()
+                        .environmentObject(vm)
                 }
             }
             .sheet(isPresented: $vm.showAddServer) {
